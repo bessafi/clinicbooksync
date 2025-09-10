@@ -1,5 +1,9 @@
 {
-  "build": "npm ci && npm run build",
-  "start": "",
+  "build": {
+    "command": "npm ci && npm run build"
+  },
+  "start": {
+    "command": ""
+  },
   "staticPublishPath": "dist"
 }
