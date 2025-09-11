@@ -16,7 +16,7 @@ import {
   Stethoscope,
   FolderSync,
   CalendarCheck,
-  X, 
+  X,
   Info,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,69 +30,9 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      toast({
-        title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        setLocation("/");
-      }, 500);
-    }
-  }, [authLoading, isAuthenticated, setLocation, toast]);
-
-  // Show backend connection error
-  useEffect(() => {
-    if (authError && authError.message.includes("Backend server not available")) {
-      toast({
-        title: "Backend Not Connected",
-        description: "Please start your Spring Boot server on port 8080 to use the app.",
-        variant: "destructive",
-      });
-    }
-  }, [authError, toast]);
-
-  
-
-  // check profile completeness
   const isProfileComplete = !!doctor?.specialization;
 
-  // redirect to settings if profile incomplete
-  /*useEffect(() => {
-      if (!authLoading && isAuthenticated && doctor && !isProfileComplete) {
-          setLocation("/settings");
-      }
-  }, [authLoading, isAuthenticated, doctor, isProfileComplete, setLocation]);
-*/
-
-
-  // redirect to settings if profile incomplete
-    useEffect(() => {
-      if (!authLoading && isAuthenticated && doctor && !isProfileComplete) {
-        toast({
-            title: "Profile Incomplete",
-            description: "Please complete your profile before accessing the dashboard.",
-        });
-        setLocation("/settings");
-      }
-    }, [authLoading, isAuthenticated, doctor, isProfileComplete, setLocation]);
-   
-  // show loading overlay during redirect
-    if (!authLoading && isAuthenticated && doctor && !isProfileComplete) {
-      return (
-          <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-             <p className="text-muted-foreground">Redirecting to settings...</p>
-          </div>
-          </div>
-      );
-    }
-
-  // Fetch appointments
+  // --- Hooks must always run ---
   const {
     data: appointments = [],
     isLoading: appointmentsLoading,
@@ -102,44 +42,34 @@ export default function Dashboard() {
       const token = getAuthToken();
       if (!token) throw new Error("No authentication token");
       const backendUrl = import.meta.env.VITE_BACKEND_URL || "https://production.up.railway.app";
-      //const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
       const response = await fetch(`${backendUrl}/api/v1/doctors/appointments`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
       if (!response.ok) {
         throw new Error(`${response.status}: ${response.statusText}`);
       }
-
       return response.json();
     },
     enabled: isAuthenticated,
     retry: false,
   });
 
-  // Cancel appointment mutation
   const cancelAppointmentMutation = useMutation({
     mutationFn: async (appointmentId: string) => {
       const token = getAuthToken();
       if (!token) throw new Error("No authentication token");
-
       const backendUrl = import.meta.env.VITE_BACKEND_URL || "https://production.up.railway.app";
-      //const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
-      
-      
       const response = await fetch(`${backendUrl}/api/v1/doctors/appointments/${appointmentId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
       if (!response.ok) {
         throw new Error(`${response.status}: ${response.statusText}`);
       }
-
       return response.json();
     },
     onSuccess: () => {
@@ -157,6 +87,68 @@ export default function Dashboard() {
       });
     },
   });
+
+  // --- Side effects ---
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        setLocation("/");
+      }, 500);
+    }
+  }, [authLoading, isAuthenticated, setLocation, toast]);
+
+  useEffect(() => {
+    if (authError?.message?.includes("Backend server not available")) {
+      toast({
+        title: "Backend Not Connected",
+        description: "Please start your Spring Boot server on port 8080 to use the app.",
+        variant: "destructive",
+      });
+    }
+  }, [authError, toast]);
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && doctor && !isProfileComplete) {
+      toast({
+        title: "Profile Incomplete",
+        description: "Please complete your profile before accessing the dashboard.",
+      });
+      setLocation("/settings");
+    }
+  }, [authLoading, isAuthenticated, doctor, isProfileComplete, setLocation, toast]);
+
+  // --- Conditional rendering AFTER hooks ---
+  if (authLoading) {
+    return <LoadingScreen message="Loading..." />;
+  }
+
+  if (!authLoading && isAuthenticated && doctor && !isProfileComplete) {
+    return <LoadingScreen message="Redirecting to settings..." />;
+  }
+
+  if (!isAuthenticated || !doctor) {
+    return null; // Redirect handled by useEffect
+  }
+
+  // --- UI Logic ---
+  const todayAppointments = appointments.filter((apt) => {
+    const today = new Date();
+    const aptDate = new Date(apt.dateTime);
+    return aptDate.toDateString() === today.toDateString();
+  }).length;
+
+  const thisWeekAppointments = appointments.filter((apt) => {
+    const today = new Date();
+    const aptDate = new Date(apt.dateTime);
+    const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+    const weekEnd = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+    return aptDate >= weekStart && aptDate <= weekEnd;
+  }).length;
 
   const handleLogout = () => {
     removeAuthToken();
@@ -188,35 +180,6 @@ export default function Dashboard() {
     });
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !doctor) {
-    return null; // Redirect happens via useEffect
-  }
-
-  const todayAppointments = appointments.filter((apt) => {
-    const today = new Date();
-    const aptDate = new Date(apt.dateTime);
-    return aptDate.toDateString() === today.toDateString();
-  }).length;
-
-  const thisWeekAppointments = appointments.filter((apt) => {
-    const today = new Date();
-    const aptDate = new Date(apt.dateTime);
-    const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
-    const weekEnd = new Date(today.setDate(today.getDate() - today.getDay() + 6));
-    return aptDate >= weekStart && aptDate <= weekEnd;
-  }).length;
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -247,20 +210,20 @@ export default function Dashboard() {
       {/* Main */}
       <main className="px-6 lg:px-8 py-8">
         <div className="mx-auto max-w-7xl">
-
-         {/* Onboarding alert if profile incomplete */}
-        {!isProfileComplete && (
+          {/* Onboarding alert */}
+          {!isProfileComplete && (
             <Alert className="mb-8 bg-blue-50 border-blue-200 text-blue-800">
-                <Info className="h-4 w-4 !text-blue-600" />
-                <AlertTitle className="font-bold">Finish setting up your profile!</AlertTitle>
-                <AlertDescription>
-                    To start accepting appointments, you need to set your specialization and connect your calendar.
-                    <Link href="/settings">
-                        <a className="font-semibold underline ml-2 hover:text-blue-900">Go to Settings</a>
-                    </Link>
-                </AlertDescription>
+              <Info className="h-4 w-4 !text-blue-600" />
+              <AlertTitle className="font-bold">Finish setting up your profile!</AlertTitle>
+              <AlertDescription>
+                To start accepting appointments, you need to set your specialization and connect
+                your calendar.
+                <Link href="/settings">
+                  <a className="font-semibold underline ml-2 hover:text-blue-900">Go to Settings</a>
+                </Link>
+              </AlertDescription>
             </Alert>
-        )}
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Doctor Profile Card */}
@@ -272,9 +235,7 @@ export default function Dashboard() {
                       <User className="h-8 w-8 text-white" />
                     </div>
                     <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-foreground">
-                        Welcome, {doctor.name}
-                      </h2>
+                      <h2 className="text-2xl font-bold text-foreground">Welcome, {doctor.name}</h2>
                       <p className="text-muted-foreground">{doctor.email}</p>
                       {doctor.specialization && (
                         <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-accent/10 text-accent">
@@ -314,10 +275,7 @@ export default function Dashboard() {
                   </div>
 
                   {appointmentsLoading ? (
-                    <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-muted-foreground">Loading appointments...</p>
-                    </div>
+                    <LoadingScreen message="Loading appointments..." />
                   ) : appointments.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
@@ -326,9 +284,7 @@ export default function Dashboard() {
                       <h4 className="text-lg font-medium text-foreground mb-2">
                         You have no upcoming appointments
                       </h4>
-                      <p className="text-muted-foreground">
-                        Your schedule is clear. Enjoy your free time!
-                      </p>
+                      <p className="text-muted-foreground">Your schedule is clear. Enjoy your free time!</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -393,6 +349,18 @@ export default function Dashboard() {
         onOpenChange={setConfirmDialogOpen}
         onConfirm={confirmCancelAppointment}
       />
+    </div>
+  );
+}
+
+// --- Helper for loading/redirect spinners ---
+function LoadingScreen({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+        <p className="text-muted-foreground">{message}</p>
+      </div>
     </div>
   );
 }
