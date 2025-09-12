@@ -10,6 +10,6 @@ export default defineConfig({
     },
   },
   define: {
-    "import.meta.env.VITE_BACKEND_URL": JSON.stringify("https://production.up.railway.app/api/v1"),
+    "import.meta.env.VITE_BACKEND_URL": JSON.stringify("https://doctorbooking-production.up.railway.app/api/v1"),
   },
 });
